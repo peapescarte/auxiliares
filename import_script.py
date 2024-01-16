@@ -144,24 +144,20 @@ def get_addressFromCEP(df_ceps) :
     return df_ceps
 
 # https://stackoverflow.com/questions/517923/what-is-the-best-way-to-remove-accents-normalize-in-a-python-unicode-string
+# https://stackoverflow.com/questions/53222476/how-to-remove-the-%C3%A2-xa0-from-list-of-strings-in-python
 def strip_accents(s):
-#    return ''.join(c for c in unicodedata.normalize('NFKD', str(s))
-                #   if unicodedata.category(c) != 'Mn')
-
-    final_list = [[unicodedata.normalize("NFKD", word) for word in ls] for ls in s]
-    very_final_list = [[word.encode('ascii', 'ignore').decode('utf-8') for word in ls] for ls in final_list]
-    return very_final_list
+   return ''.join(c for c in unicodedata.normalize('NFKD', str(s))
+                  if unicodedata.category(c) != 'Mn')
 
 def sendEmail(df) :
     # credenciais SMTP + GMAIL
     port = 587  # For starttls
     smtp_server = "smtp.gmail.com"
     sender_email = "sahudy.montenegro@gmail.com"  # noreply-pea-pescarte@uenf.br
-    password = "xeux czgq uekt dwvb"    
-    message = """\
-    Subject: Platforma Pescarte
-
-    Caro %s %s,
+    password = "xeux czgq uekt dwvb"  
+    SUBJECT= "Login na plataforma Pescarte"  
+    TEXT = """\
+    Cara(o) %s %s,
     
     Segue seu login/senha para acessar a plataforma Pescarte (pescarte.uenf.br). 
     login: %s (seu CPF)
@@ -171,32 +167,28 @@ def sendEmail(df) :
     
     Equipe Plataforma Pescarte
     """
+    # .format(SUBJECT, TEXT)
+    message = f'Subject: {SUBJECT}\n\n{TEXT}'
 
     context = ssl.create_default_context()
     for idx,u in df.iterrows() :
         if u[5] == 'S' :    #  'ATIVO (S/N)'
-            nome = strip_accents(u[1])
-            sobrenome = strip_accents(u[2])
-            print(nome)
-            print(sobrenome)
-            cpf = u[0]
+            cpf = u[0].strip()
+            nome = strip_accents(u[1].strip().replace(u'\xa0', u''))
+            sobrenome = strip_accents(u[2].strip().replace(u'\xa0', u''))
             senha = u[3] # "Senha"
             # receiver_email = u[4]  # "E-mail" do usuario       DESCOMENTAR 
-            # if idx < 25 :
-            receiver_email = "sahudy@ufscar.br" # apenas teste! comentar ou apagar!!!
-            # else :
-            #     if idx < 60 :
-            #         receiver_email = "zoey.spessanha@icloud.com" 
-            #     else :
-            #         receiver_email = "annabell@uenf.br" 
+            # apenas teste! comentar ou apagar a prox linha!!!
+            receiver_email = "sahudy@ufscar.br"  # "annabell@uenf.br" "zoey.spessanha@icloud.com"
             with smtplib.SMTP(smtp_server, port) as server:
-                server.ehlo()  # Can be omitted
+                # server.ehlo()  # Can be omitted
                 server.starttls(context=context)
-                server.ehlo()  # Can be omitted
+                # server.ehlo()  # Can be omitted
                 server.login(sender_email, password)
                 server.sendmail(sender_email, receiver_email, message % (nome,sobrenome,cpf,senha))
     print("All users got e-mail!")
-    return 1
+    # server.quit()
+    return 
 
 ########################################################################################################################
 #                    CONEXÃO
@@ -789,6 +781,7 @@ insertUsuarios(conn,df_datasheet)
 # conda activate pescarte-import
 # python -W ignore import_script.py      OU
 # python import_script.py
+# servidor SMTP - de email: python -m smtpd -c DebuggingServer -n localhost:1025
 
 
 ### TO DO
@@ -797,7 +790,7 @@ insertUsuarios(conn,df_datasheet)
 # vacuum from python
 # deixar o endereco como esta na planilha, apenas separar a cidade - manter endereco num campo so, ignorar rua e complemento
 # verificar o esquema real
-# email real do noreply-pea-pescarte@uenf.br  para testar/enviar!
+# email real do noreply-pea-pescarte@uenf.br  para testar/enviar! : hoje vai copia do email para o sender, tem como evitar?
 # OK testado! email
 # OK tem 104 insercoes ao inves de 106 - revisar os enderecos com cep nao encontrado e colocar o original
 # OK rowcount
