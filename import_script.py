@@ -465,7 +465,7 @@ def empty_table(conn,table,ini=0) :
     print("Old rows removed...")
     cur.close()
 
-def clean_data(conn) :
+def erase_data(conn) :
     empty_table(conn,'"pesquisador_LP"')
     empty_table(conn,'pesquisador')
     empty_table(conn,'"public".user')
@@ -769,7 +769,7 @@ df_datasheet = connect2Data()
 # print("Inserting Linhas de pesquisa..." )
 # insertLPs(conn, df_datasheet)
 
-clean_data(conn)
+erase_data(conn)
 
 # print("Inserting Universidades e campi..." )
 insertCampi(conn,df_datasheet)
