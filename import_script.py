@@ -25,7 +25,7 @@ HOST = "localhost"
 PORT = "5432"
 DATABASE = "pescarte_import"
 USER = "sahudymontenegro"
-PASSWORD = "21452123888"
+PASSWORD = "xxx"
 
 
 ########################################################################################################################
@@ -732,8 +732,8 @@ def loadUsuarios(conn,df_sheet) :
 
     insertUserData(conn,df_usuarios) 
     #  DESCOMENTAR ABAIXO
-    # sendEmail(df_usuarios[['CPF', 'BOLSISTA - PRIMEIRO NOME', \
-                        #    'BOLSISTA - ÚLTIMO NOME', 'Senha', 'E-mail', 'ATIVO (S/N)']]) # envia email com a senha de usuario para o email principal
+    sendEmail(df_usuarios[['CPF', 'BOLSISTA - PRIMEIRO NOME', \
+                           'BOLSISTA - ÚLTIMO NOME', 'Senha', 'E-mail', 'ATIVO (S/N)']]) # envia email com a senha de usuario para o email principal
 
     # inserindo os dados na tabela de pesquisadores
     df_pesquisadores = df_datasheet[['CPF', 'TIPO DE BOLSA', 'FORMAÇÃO', 'DATA DA CONTRATAÇÃO', \
@@ -767,10 +767,10 @@ print("Loading data from Google Sheet..." )
 df_datasheet = connect2Data()
 
 # print("Inserting Núcleos de pesquisa..." )
-# insertNucleos(conn)
+insertNucleos(conn)
 
 # print("Inserting Linhas de pesquisa..." )
-# insertLPs(conn, df_datasheet)
+insertLPs(conn, df_datasheet)
 
 erase_data(conn)
 
