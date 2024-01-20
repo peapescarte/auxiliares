@@ -97,18 +97,21 @@ def get_addressFromCEP(df_ceps) :
         ws = WebService.VIACEP
         try:
             endereco = get_address_from_cep(cep, webservice=ws)
-
             lst_cidades.append(endereco['city'])
             lst_ufs.append(endereco['uf'])
-            lst_ruas.append(endereco['street'])
+            if endereco['street'] == '' :
+                lst_ruas.append("pega da planilha")
+            else :
+                lst_ruas.append(endereco['street'])
+
         # when provide CEP is invalid. Wrong size or with chars that dont be numbers.
         except exceptions.InvalidCEP as eic:
             print(eic)
             # print('Na linha: ', idx+2)
             print('CEP inválido',cep)
-            lst_cidades.append(endereco['city'])
-            lst_ufs.append(endereco['uf'])
-            lst_ruas.append(endereco['street'])
+            lst_cidades.append('')
+            lst_ufs.append('')
+            lst_ruas.append("pega da planilha")
         #     lst_cidades.append('CEP inválido') A PEDIDO: IGNORAR
         #     lst_ufs.append('CEP inválido')
         #     lst_ruas.append('CEP inválido')
@@ -117,9 +120,9 @@ def get_addressFromCEP(df_ceps) :
         except exceptions.CEPNotFound as ecnf:
             print(ecnf)
             print('CEP não encontrado',cep)
-            lst_cidades.append(endereco['city'])
-            lst_ufs.append(endereco['uf'])
-            lst_ruas.append(endereco['street'])
+            lst_cidades.append('')
+            lst_ufs.append('')
+            lst_ruas.append('pega da planilha')
             # lst_cidades.append('CEP não encontrado') A PEDIDO: IGNORAR
             # lst_ufs.append('CEP não encontrado')
             # lst_ruas.append('CEP não encontrado')
@@ -148,6 +151,11 @@ def get_addressFromCEP(df_ceps) :
 def strip_accents(s):
    return ''.join(c for c in unicodedata.normalize('NFKD', str(s))
                   if unicodedata.category(c) != 'Mn')
+
+def trim_allcolumns(df) :
+    for (colname,colval) in df.iteritems():
+        df[colname] = colval.astype(str).apply(lambda x: x.strip()) #eplace(' ', ''))
+    return df
 
 def sendEmail(df) :
     # credenciais SMTP + GMAIL
@@ -302,62 +310,33 @@ def insertLPs(conn,df_sheet) :
     df_linhaspesquisa.to_sql('linha_pesquisa', con=engine, if_exists='append', index=False)  
     print("LPs inserted")
 
-########################################################################################################################
-#                     UNIVERSIDADES + CAMPUS
-def insertCampi(conn,df_sheet) :
-
-     # endereço dos campi
-    df_universidades_complement = df_sheet[['UNIVERSIDADE','UNIVERSIDADE SIGLA','CAMPUS','ENDEREÇO - CAMPUS (sem cidade e nem cep)','CEP - CAMPUS']].drop_duplicates().dropna(subset=['CEP - CAMPUS'])
-    df_universidades_address = insertUniversityAddress(conn,df_universidades_complement)
-    df_universidades_complement = df_universidades_complement.join(df_universidades_address.set_index(['cep']), on=['CEP - CAMPUS'], how='left') # sera que precisa da rua tb? a rigor sim, pois podem ter dois enderecos (numero) distintos por cep, certo?
-    df_universidades_core = df_universidades_complement[['UNIVERSIDADE','UNIVERSIDADE SIGLA','CAMPUS',"id"]]
-    df_universidades_core = df_universidades_core.rename(columns={"UNIVERSIDADE": "university_name", "UNIVERSIDADE SIGLA": "initials", "CAMPUS": "name", "id": "address_id"})
-    lst = [i for i in range(1,len(df_universidades_core.index)+1)]
-    df_universidades_core.insert(0,"id",lst, allow_duplicates=False) #NAO PRECISA, É SERIAL NO BD!
-    # acrescentando o id public como nanoid
-    nanoids = generate_nanoid(len(df_universidades_core.index)+1)
-    df_universidades_core.insert(1,"public_id",nanoids, allow_duplicates=False)
-
-    #importando
-    engine = getEngine()
-    # Opcao 2: (como é um script de uma única vez suponho que se existem tuplas inseridas, posso apagar e reinserir)
-    df_universidades_core.to_sql('campi', con=engine, if_exists='append', index=False)
-    print("Campi inserted")
-
-def insertUniversityAddress(conn,df_universidades_complement) :
-    # limpando CEP: só números
-    df_universidades_complement['CEP - CAMPUS'] = df_universidades_complement['CEP - CAMPUS'].apply(lambda row: trim_special_chars(row)).astype(str)
-    print("Universities: Checking CEP against BrazilCEP - Brazilian zip codes...")
-    df_address = get_addressFromCEP(df_universidades_complement[['CEP - CAMPUS']]).astype(str)
-    df_universidades_complement.sort_values(by=['ENDEREÇO - CAMPUS (sem cidade e nem cep)'],inplace=True,na_position='last')
-    df_universidades_complement.drop_duplicates(subset=['UNIVERSIDADE SIGLA','CAMPUS'],keep='first',inplace=True)
-    df_universidades_complement = df_universidades_complement.join(df_address.set_index('CEP - CAMPUS'), on='CEP - CAMPUS', how='left')
-    # se a célula do endereço da planilha está sem valor, substitui pelo valor de rua dos correios via obtido via CEP
-    df_universidades_complement['ENDEREÇO - CAMPUS (sem cidade e nem cep)'].where(~(df_universidades_complement['ENDEREÇO - CAMPUS (sem cidade e nem cep)'].isna()), other=df_universidades_complement['rua'], inplace=True)
-
-    df_county = insertCounty(conn,df_universidades_complement[['county','uf']])
-    # chave estrangeira com PK vinda da tabela de cidades
-    df_universidades_complement = df_universidades_complement.join(df_county.set_index(['county','uf']), on=['county','uf'], how='left')
-    df_universidades_address = df_universidades_complement[['ENDEREÇO - CAMPUS (sem cidade e nem cep)','CEP - CAMPUS']]
-    df_universidades_address = df_universidades_address.rename(columns={"ENDEREÇO - CAMPUS (sem cidade e nem cep)": "rua", "CEP - CAMPUS": "cep", "id": "city_id"})
-    # acrescentando o id unico sequencial da tabela
-    # controlando o id no codigo pois serve de chave estrangeira para a tabela de campi
-    lst = [i for i in range(1,len(df_universidades_address.index)+1)]
-    df_universidades_address.insert(0,"id",lst, allow_duplicates=False)
-
-    engine = getEngine()
-    # Opcao 2: (como é um script de uma única vez suponho que se existem tuplas inseridas, posso apagar e reinserir)
-    df_universidades_address.to_sql('address', con=engine, if_exists='append', index=False)
-    print("Addresses inserted")
-
-    return df_universidades_address
-
 
 ########################################################################################################################
 #                     AUXILIARES SQLs
+
+def insertCounty(conn,df_county) :
+    df_county = df_county.drop_duplicates().dropna()
+    nanoids = generate_nanoid(len(df_county.index)+1)
+    df_county.insert(0,"public_id",nanoids, allow_duplicates=False)
+
+    # ON CONFLICT deveria ser (county,uf) se fosse generico mas nao funciona pq nao ha PK ou UNIQUE ou INDEX em county
+    sqltxt = "INSERT INTO city (id, public_id, county, uf) VALUES (%s, %s, %s, %s)" # ON CONFLICT (county) DO NOTHING"
+
+    cur = conn.cursor()
+    for idx,cidade in df_county.iterrows() :
+        if not find_city(conn,cidade['county']):
+            last_id = get_lastID(conn,'city')
+            vals = (last_id + 1, cidade['public_id'], cidade['county'].lower(), cidade['uf'].lower())
+            cur.execute(sqltxt,vals)
+
+    conn.commit()
+    cur.close()
+    print("Cidades + UFs inserted")
+    return df_county
+
 def find_city(conn,cidade) :
     cur = conn.cursor()
-    sqltxt = "SELECT * FROM city WHERE county ILIKE '%s'" % cidade
+    sqltxt = "SELECT * FROM city WHERE county ILIKE '%s'" % cidade.lower()
     cur.execute(sqltxt)
     if cur.rowcount == 0 :
         cur.close()
@@ -375,74 +354,58 @@ def get_lastID(conn,table) :
         return 0
     return max[0]
 
-def insertCounty(conn,df_county) :
-
-    df_county = df_county.drop_duplicates().dropna()
-    nanoids = generate_nanoid(len(df_county.index)+1)
-    df_county.insert(0,"public_id",nanoids, allow_duplicates=False)
-
-    # ON CONFLICT deveria ser (county,uf) se fosse generico mas nao funciona pq nao ha PK ou UNIQUE ou INDEX em county
-    sqltxt = "INSERT INTO city (id, public_id, county, uf) VALUES (%s, %s, %s, %s)" # ON CONFLICT (county) DO NOTHING"
-
-    cur = conn.cursor()
-    for idx,cidade in df_county.iterrows() :
-        if not find_city(conn,cidade['county']):
-            last_id = get_lastID(conn,'city')
-            vals = (last_id + 1, cidade['public_id'], cidade['county'], cidade['uf'])
-            cur.execute(sqltxt,vals)
-
-    conn.commit()
-    cur.close()
-
-    # # acrescentando o id unico sequencial da tabela
-    # # controlando o id no codigo pois serve de chave estrangeira para a tabela de endereços
-    # lst = [i for i in range(1,len(df_county.index)+1)]
-    # df_county.insert(0,"id",lst, allow_duplicates=False)
-
-    # engine = getEngine()
-    # # Opcao 2: (como é um script de uma única vez suponho que se existem tuplas inseridas, posso apagar e reinserir)
-    # df_county.to_sql('city', con=engine, if_exists='append', index=False)
-    print("Cidades + UFs inserted")
-
-    return df_county
-
 def get_cityID(conn, cidade) :
     cur = conn.cursor()
-    sqltxt = "SELECT id FROM city WHERE county ILIKE '%s'" % cidade
+    sqltxt = "SELECT id FROM city WHERE county ILIKE '%s'" % cidade.lower()
     cur.execute(sqltxt)
-    city_id = cur.fetchone()[0]
+    city_id = cur.fetchone()
     if city_id == None :
         cur.close()
         return 0
     cur.close()
-    return city_id
+    return city_id[0]
+
+def get_UF(conn, cidade) :
+    cur = conn.cursor()
+    sqltxt = "SELECT uf FROM city WHERE county ILIKE '%s'" % cidade.lower()
+    cur.execute(sqltxt)
+    uf = cur.fetchone()
+    if uf == None :
+        cur.close()
+        return 0
+    cur.close()
+    return uf[0]
 
 def get_userID(conn, cpf) :
     cur = conn.cursor()
     sqltxt = 'SELECT id FROM public."user" ' + "WHERE cpf ILIKE '%s'" % cpf
     cur.execute(sqltxt)
-    user_id = cur.fetchone()[0]
+    user_id = cur.fetchone()
     if user_id == None :
         cur.close()
         return 0
     cur.close()
-    return user_id
+    return user_id[0]
 
 def get_campusID(conn, univ_sigla, campus) :
     cur = conn.cursor()
     sqltxt = "SELECT id FROM campi WHERE initials ILIKE '%s' AND name ILIKE '%s'" % (univ_sigla, campus)
     cur.execute(sqltxt)
-    campus_id = cur.fetchone()[0]
+    campus_id = cur.fetchone()
     cur.close()
-    return campus_id
+    if campus_id == None:
+        return None
+    return campus_id[0]
 
 def get_pesquisadorID(conn,lattes) :
     cur = conn.cursor()
     sqltxt = "SELECT id FROM pesquisador WHERE link_lattes ILIKE '%s'" % lattes
     cur.execute(sqltxt)
-    pesquisador_id = cur.fetchone()[0]
+    pesquisador_id = cur.fetchone()
     cur.close()
-    return pesquisador_id
+    if pesquisador_id == None:
+        return None
+    return pesquisador_id[0]
 
 def get_table_rowcount(conn,table) :
     cur = conn.cursor()
@@ -486,20 +449,85 @@ def vacuum(self): # nao funciona, quem eh self???
 
 
 ########################################################################################################################
+#                     UNIVERSIDADES + CAMPUS
+
+def insertCampi(conn,df_sheet) :
+     # endereço dos campi
+    df_universidades_complement = df_sheet[['UNIVERSIDADE','UNIVERSIDADE SIGLA','CAMPUS','ENDEREÇO - CAMPUS (sem cidade e nem cep)','CEP - CAMPUS']].drop_duplicates().dropna(subset=['CEP - CAMPUS'])
+    df_universidades_address = insertUniversityAddress(conn,df_universidades_complement)
+    df_universidades_core = df_universidades_complement[['UNIVERSIDADE','UNIVERSIDADE SIGLA','CAMPUS']] #,"id"]]
+    df_universidades_core = df_universidades_core.rename(columns={"UNIVERSIDADE": "university_name", "UNIVERSIDADE SIGLA": "initials", "CAMPUS": "name"})#, "id": "address_id"})
+
+    # applies the replacement to all column values in a pandas dataframe at once.
+    df_universidades_core = trim_allcolumns(df_universidades_core)
+    df_universidades_core.drop_duplicates(inplace=True)
+
+    lst = [i for i in range(1,len(df_universidades_core.index)+1)]
+    df_universidades_core.insert(0,"id",lst, allow_duplicates=False) #NAO PRECISA, É SERIAL NO BD!
+    # acrescentando o id public como nanoid
+    nanoids = generate_nanoid(len(df_universidades_core.index)+1)
+    df_universidades_core.insert(1,"public_id",nanoids, allow_duplicates=False)
+
+    sqltxt = "INSERT INTO campi (id, public_id, initials, name, university_name, address_id) VALUES (%s, %s, %s, %s, %s, %s)" 
+
+    cur = conn.cursor()
+    for idx,campus in df_universidades_core.iterrows() :
+        address_id = df_universidades_address.at[idx,"id"]
+        vals = (campus["id"], campus['public_id'], campus['initials'], campus['name'], campus['university_name'], int(address_id))
+        cur.execute(sqltxt,vals)
+
+    conn.commit()
+    cur.close()
+    print("Campi inserted")
+
+def insertUniversityAddress(conn,df_universidades_complement) :
+    # limpando CEP: só números
+    df_cep = pd.DataFrame(df_universidades_complement['CEP - CAMPUS'].apply(lambda row: trim_special_chars(row)).astype(str).drop_duplicates())
+    print("Universities: Checking CEP against BrazilCEP - Brazilian zip codes...")
+    df_address = get_addressFromCEP(df_cep)
+
+    # quando o CEP é invalido, nao encontrado 
+    for idx,ad in df_address.iterrows() :
+        # a rua na planilha eh mais completa, no CEP-BR nao vem numero da rua (of course)
+        df_address.at[idx,'rua'] = df_universidades_complement.at[idx,'ENDEREÇO - CAMPUS (sem cidade e nem cep)' ]
+        if ad[2] == '' :
+            df_address.at[idx,'county'] = df_universidades_complement.at[idx,'CAMPUS']
+            df_address.at[idx,'uf'] = 'RJ' # nao tem UF da universidade na planilha, os 2 casos em q  cep nao da certo sao de RJ
+
+    insertCounty(conn,df_address[['county','uf']])
+
+    lst = [i for i in range(1,len(df_address.index)+1)]
+    df_address.insert(0,"id",lst, allow_duplicates=False)
+
+    sqltxt_address = "INSERT INTO address (id, rua, cep, city_id) VALUES (%s, %s, %s, %s)"
+
+    cur = conn.cursor()
+    for idx, ad in df_address.iterrows() :
+        city_id = get_cityID(conn,ad['county'])
+        last_address_id = get_lastID(conn,'address')
+        vals_address = (last_address_id+1, ad['rua'], ad['CEP - CAMPUS'], city_id)
+        cur.execute(sqltxt_address, vals_address)
+
+    conn.commit()
+    cur.close()
+    print("Addresses inserted")
+    return df_address
+
+
+########################################################################################################################
 #                     USUARIOS     +     PESQUISADORES
 
 def insertContactInfo(conn,df_contato) :
-
     cur = conn.cursor()
 
-    sqltxt_address = "INSERT INTO address (id, rua, complemento, cep, city_id) VALUES (%s, %s, %s, %s, %s)"
+    sqltxt_address = "INSERT INTO address (id, rua, cep, city_id) VALUES (%s, %s, %s, %s)"
     sqltxt_contato = "INSERT INTO contato (id, mobile_principal, email_principal, mobile_outros, email_outros, address) VALUES (%s, %s, %s, %s, %s, %s)"
 
     for idx,contact in df_contato.iterrows() :
         # inserir o endereco
         city_id = get_cityID(conn,contact['county'])
         last_address_id = get_lastID(conn,'address')
-        vals_address = (last_address_id+1, contact['Endereço'], contact['Bairro'], contact['CEP'], city_id)
+        vals_address = (last_address_id+1, contact['Endereço'], contact['CEP'], city_id)
         cur.execute(sqltxt_address, vals_address)
 
         # inserir contato com FK do endereco
@@ -573,29 +601,32 @@ def insert_LP_pesquisador(conn,df_LP):
     cur.close()
     print("LPs dos pesquisadores inseridas com LIDER")
 
-def arrange_contact_info(df_usuarios_contato) :
-    df_usuarios_contato.drop_duplicates(inplace=True,keep='first')
-
-    # precisa extrair a partir do bairro e cidade do endereço
-    # df_usuarios_contato[['Endereço','Bairro']] = pd.DataFrame(df_usuarios_contato['Endereço'].apply(lambda row: split_string(row,'bairro')).tolist(), index= df_usuarios_contato.index)
-    # df_usuarios_contato[['Bairro','Cidade']] = pd.DataFrame(df_usuarios_contato['Bairro'].apply(lambda row: split_string(row,'cidade')).tolist(), index= df_usuarios_contato.index)   
+def arrange_contact_info(conn,df_usuarios_contato) :
+    # precisa extrair a partir do bairro (nao mais) e cidade do endereço
     address = df_usuarios_contato['Endereço']
-    address_OK, bairro = split_stringlist(address,'bairro')
+    address_OK, cidade = split_stringlist(address,'cidade')
     df_usuarios_contato['Endereço'] = address_OK
-    df_usuarios_contato.insert(2,'Bairro',bairro)  
-    bairro_OK, cidade = split_stringlist(bairro,'cidade')
-    df_usuarios_contato['Bairro'] = bairro_OK
+    # nao vamos mais separar o bairro do endereco completo
+    # address_OK, bairro = split_stringlist(address,'bairro')
+    # df_usuarios_contato.insert(2,'Bairro',bairro)  
+    # bairro_OK, cidade = split_stringlist(bairro,'cidade')
+    # df_usuarios_contato['Bairro'] = bairro_OK
     df_usuarios_contato.insert(3,'Cidade',cidade)
 
     # juntar telef e email de varias linhas do mesmo pesquisador
     df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['Telefone'].apply(lambda row: add_separator(row,' (',';('))))
     df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['E-mail'].apply(lambda row: add_separator(row,',',';'))))
- 
+
+    df_usuarios_contato.drop_duplicates(inplace=True,keep='first')
+
     # separando em dois campos: first|rest
     # (telefone,outros_telefones) 
     # df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['Telefone'].astype(str).apply(lambda row: remove_duplicates(row))))
     df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['Telefone'].astype(str).apply(lambda row: trim_special_chars(row,chars=['.','-',' ','(',')'])))) #  outros possiveis a remover
-    df_usuarios_contato[['Telefone','Outros telefones']] = pd.DataFrame(df_usuarios_contato['Telefone'].str.split(';', n=1, expand=True, regex=False), index= df_usuarios_contato.index)
+    df_usuarios_contato[['Telefone','Outros telefones']] = pd.DataFrame(df_usuarios_contato['Telefone']\
+                .str.split(';', n=1, expand=True, regex=False)\
+                .applymap(lambda value: None if value == "" else value),     
+                index= df_usuarios_contato.index) # `.applymap` converts empty strings ("") into None.
     df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['Outros telefones'].astype(str).apply(lambda row: "{" + row + "}")))
     # (email,outros_emails) 
     df_usuarios_contato.update(pd.DataFrame(df_usuarios_contato['E-mail'].astype(str).apply(lambda row: trim_special_chars(row,chars=[' ']))))
@@ -608,49 +639,31 @@ def arrange_contact_info(df_usuarios_contato) :
 
     print('Users: Checking CEP against BrazilCEP - Brazilian zip codes...')
     df_address = get_addressFromCEP(df_usuarios_contato[['CEP']]).astype(str)
+
+    # quando o CEP é invalido, nao encontrado 
+    for idx,ad in df_address.iterrows() :
+        # a rua na planilha eh mais completa, no CEP-BR nao vem numero da rua (of course)
+        df_address.at[idx,'rua'] = df_usuarios_contato.at[idx,'Endereço' ]
+        if ad[2] == '' : # CEP errado vem sem cidade e UF, precisa completar com os dados da planilha 
+            df_address.at[idx,'county'] = df_usuarios_contato.at[idx,'Cidade']
+            uf = get_UF(conn,df_address.at[idx,'county']) #df_usuarios_contato.at[idx,'UF'] # nao tem UF da universidade na planilha, os 2 casos em q  cep nao da certo sao de RJ
+            if uf != 0 :
+                df_address.at[idx,'uf'] =  uf  
+            else :
+                df_address.at[idx,'uf'] = 'RJ' # nao tem UF da universidade na planilha, os 2 casos em q  cep nao da certo sao de RJ
+
+    # insere cidades+uf do endereço dos pequisadores
+    insertCounty(conn,df_address[['county','uf']])
     df_usuarios_contato = df_usuarios_contato.join(df_address.set_index('CEP'), on='CEP', how='left')
-    # atualizando o valor do endereço com rua que vem do CEP, e 
-    # o county e UF que vem do CEP com a cidade da planilha quando nao encontrado
-    df_usuarios_contato['Endereço'].where(~(df_usuarios_contato['Endereço'].isna()), other=df_usuarios_contato['rua'], inplace=True)
-    df_usuarios_contato['county'].where(~(df_usuarios_contato['county'].isna()), other=df_usuarios_contato['Cidade'], inplace=True)
-    df_usuarios_contato['county'].where(~(df_usuarios_contato['county'] == 'CEP não encontrado'), other=df_usuarios_contato['Cidade'], inplace=True)
-    df_usuarios_contato['county'].where(~(df_usuarios_contato['county'] == 'CEP inválido'), other=df_usuarios_contato['Cidade'], inplace=True)
-
-    cidades = df_usuarios_contato['county'].where((df_usuarios_contato['uf'] == 'CEP inválido') | (df_usuarios_contato['uf'] == 'CEP não encontrado'))
-    ufs = df_usuarios_contato['uf'].where((df_usuarios_contato['county'].isin(cidades) & ~(df_usuarios_contato['uf'].isin(['CEP não encontrado','CEP inválido']))))
-    cidades.drop_duplicates(inplace=True)
-    cidades.dropna(inplace=True)
-    ufs.drop_duplicates(inplace = True)
-    ufs.dropna(inplace=True)
-
-    for cidade in cidades :
-        uf = df_usuarios_contato['uf'] \
-            .loc[(df_usuarios_contato['uf'] != 'CEP inválido') & \
-            (df_usuarios_contato['uf'] != 'CEP não encontrado') & \
-            (df_usuarios_contato['county'] == cidade)]
-        uf.drop_duplicates(inplace = True)
-        if not uf.empty :
-            df_usuarios_contato.loc[df_usuarios_contato['county'].isin([cidade]) & \
-                (df_usuarios_contato['uf'].isin(['CEP não encontrado','CEP inválido'])) ,'uf'] = uf.iloc[0]
 
     # acrescentando o id unico sequencial da tabela
     # controlando o id no codigo pois serve de chave estrangeira para a tabela de endereços
     lst = [i for i in range(1,len(df_usuarios_contato.index)+1)]
     df_usuarios_contato.insert(0,"id",lst, allow_duplicates=False)
 
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options 
-        print(df_usuarios_contato)
-        print(len(df_usuarios_contato))
-
-    df_removed = df_usuarios_contato.loc[df_usuarios_contato['uf'].isin(['CEP não encontrado','CEP inválido'])]
-    df_usuarios_contato = df_usuarios_contato.loc[~df_usuarios_contato['uf'].isin(['CEP não encontrado','CEP inválido'])]
-    # df_usuarios_contato = df_usuarios_contato[['id', 'CPF', 'Endereço', 'CEP', 'Bairro', 'Telefone',\
-    #    'E-mail', 'Outros telefones', 'Outros E-mails', 'county', 'uf']]
-
-    df_usuarios_contato.drop(['Cidade','rua'], axis=1, inplace=True)
-
-    # insere cidades+uf do endereço dos pequisadores
-    insertCounty(conn,df_usuarios_contato[['county','uf']])
+    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options 
+    #     print(df_usuarios_contato)
+    #     print(len(df_usuarios_contato))
 
     return df_usuarios_contato
 
@@ -672,19 +685,16 @@ def verify_dataconsistency(df_sheet) :
    
     return 1
 
-def insertUsuarios(conn,df_sheet) :
+def loadUsuarios(conn,df_sheet) :
 
     if not verify_dataconsistency(df_sheet) :
         print('Dados inválidos - Revise o dataset')
         return
 
     # dados da tabela CONTATO
-    # remover comentario 
-    df_usuarios_contato = arrange_contact_info(df_sheet[['Endereço', 'CEP', 'Telefone', 'E-mail']])
+    df_usuarios_contato = arrange_contact_info(conn,df_sheet[['Endereço', 'CEP', 'Telefone', 'E-mail']])
     # # insere todas as info de contato: endereco completo, telefones, emails
-    # remover comentario 
-    insertContactInfo(conn,df_usuarios_contato[['id', 'Endereço', 'CEP', 'Bairro', 'Telefone',\
-    # remover comentario    
+    insertContactInfo(conn,df_usuarios_contato[['id', 'Endereço', 'CEP', 'Telefone',\
         'E-mail', 'Outros telefones', 'Outros E-mails', 'county']]) # em casos mais genericos precisa passar o 'uf' para conferir unicidade de cidade
 
     # inserindo o restante dos dados na tabela de usuarios com perfil pesquisador
@@ -712,10 +722,6 @@ def insertUsuarios(conn,df_sheet) :
     print('Encriptying passwords...')
     salt = bcrypt.gensalt()
     df_usuarios['Hashed'] = df_usuarios['Senha'].apply(lambda row: generate_cryptpass(row,salt))
- 
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options 
-        print(df_usuarios)
-        print(len(df_usuarios))
 
     # TESTANDO A SENHA E SUA BCRYPT        
     # for row in df_usuarios.itertuples() :
@@ -724,9 +730,10 @@ def insertUsuarios(conn,df_sheet) :
     #     else:
     #         print("It Does not Match :(")
 
-    insertUserData(conn,df_usuarios)
-    sendEmail(df_usuarios[['CPF', 'BOLSISTA - PRIMEIRO NOME', \
-                           'BOLSISTA - ÚLTIMO NOME', 'Senha', 'E-mail', 'ATIVO (S/N)']]) # envia email com a senha de usuario para o email principal
+    insertUserData(conn,df_usuarios) 
+    #  DESCOMENTAR ABAIXO
+    # sendEmail(df_usuarios[['CPF', 'BOLSISTA - PRIMEIRO NOME', \
+                        #    'BOLSISTA - ÚLTIMO NOME', 'Senha', 'E-mail', 'ATIVO (S/N)']]) # envia email com a senha de usuario para o email principal
 
     # inserindo os dados na tabela de pesquisadores
     df_pesquisadores = df_datasheet[['CPF', 'TIPO DE BOLSA', 'FORMAÇÃO', 'DATA DA CONTRATAÇÃO', \
@@ -743,15 +750,12 @@ def insertUsuarios(conn,df_sheet) :
     df_pesquisadores['ATIVO (S/N)'].mask(df_pesquisadores['ATIVO (S/N)']=='S', other=True, inplace=True)
     df_pesquisadores['ATIVO (S/N)'].mask(df_pesquisadores['ATIVO (S/N)']=='N', other=False, inplace=True)
 
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options 
-        print(df_pesquisadores)
-        print(len(df_pesquisadores))
-
     insertDadosPesquisa(conn, df_pesquisadores)
 
     # inserindo as LPs por pesquisador
     df_pesquisadores_LPs = df_datasheet[['NoLP', 'LINK LATTES', 'Responsavel pela LP? (insira o numero da LP)']]
     insert_LP_pesquisador(conn,df_pesquisadores_LPs)
+    return
 
 
 ########################################################################################################################
@@ -759,7 +763,6 @@ def insertUsuarios(conn,df_sheet) :
 
 print("Starting connection..." )
 conn = connectDB()
-# cur = conn.cursor()
 print("Loading data from Google Sheet..." )
 df_datasheet = connect2Data()
 
@@ -775,7 +778,8 @@ erase_data(conn)
 insertCampi(conn,df_datasheet)
 
 # print("Inserting Usuários, Pesquisadores..." )
-insertUsuarios(conn,df_datasheet)
+loadUsuarios(conn,df_datasheet)
+
 
 
 # conda activate pescarte-import
@@ -783,14 +787,20 @@ insertUsuarios(conn,df_datasheet)
 # python import_script.py
 # servidor SMTP - de email: python -m smtpd -c DebuggingServer -n localhost:1025
 
+# Para mexer no script de importação de pesquisadores e atualizar no GITHUB
+# git add import_script.py
+# git commit -m "some improvements" (possivelmente “atualizando enderecos”)
+# git push
+
+
 
 ### TO DO
-# revisar os dados no BD, algo raro, nao lembro o que
 # catch exception
 # vacuum from python
-# deixar o endereco como esta na planilha, apenas separar a cidade - manter endereco num campo so, ignorar rua e complemento
+# OK deixar o endereco como esta na planilha, apenas separar a cidade - manter endereco num campo so, ignorar rua e complemento
 # verificar o esquema real
 # email real do noreply-pea-pescarte@uenf.br  para testar/enviar! : hoje vai copia do email para o sender, tem como evitar?
+# preciso da descricao longa dos nucleos e LPs
 # OK testado! email
 # OK tem 104 insercoes ao inves de 106 - revisar os enderecos com cep nao encontrado e colocar o original
 # OK rowcount
@@ -823,3 +833,7 @@ insertUsuarios(conn,df_datasheet)
 # verificado!!!
 # select * from pesquisador
 # where data_inicio_bolsa > data_fim_bolsa or data_inicio_bolsa < data_contratacao
+
+
+
+
