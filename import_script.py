@@ -709,7 +709,7 @@ loadUsuarios(conn,df_datasheet)
 
 # Para mexer no script de importação de pesquisadores e atualizar no GITHUB
 # git add import_script.py
-# git commit -m "some improvements" (possivelmente “atualizando enderecos”)
+# git commit -m "script revisado com nome de campos e de tabelas reais da plataforma" ("some improvements")
 # git push
 
 
