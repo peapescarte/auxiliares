@@ -750,15 +750,14 @@ loadUsuarios(conn,df_datasheet)
 # git push OR git push -f origin main
 
 
-
 ### TO DO
-# verificar linhas do IF 571-574
+# OK verificar linhas do IF 571-574 (do uf com cep errado)
 # catch exception
 # vacuum from python
 # OK deixar o endereco como esta na planilha, apenas separar a cidade - manter endereco num campo so, ignorar rua e complemento
 # OK verificar o esquema real
 # email real do noreply-pea-pescarte@uenf.br  para testar/enviar! : hoje vai copia do email para o sender, tem como evitar?
-# preciso da descricao longa dos nucleos e LPs
+# preciso da descricao longa das LPs
 # OK testado! email
 # OK tem 104 insercoes ao inves de 106 - revisar os enderecos com cep nao encontrado e colocar o original
 # OK rowcount
