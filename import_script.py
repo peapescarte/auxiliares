@@ -86,11 +86,31 @@ def split_string(str,stopword) :
     after = trim_special_chars(after,chars=['-',',','.'],newchar=' ').strip()
     return [before, after]
 
-def getEngine() :
-    # insert into db
-    # sqlalchemy engine
-    return create_engine('postgresql://' + USER + ':' + PASSWORD + '@' + HOST + ':' + PORT + '/' + DATABASE)
-
+def get_tipo_bolsa(bolsa) :
+    bolsa = bolsa.strip()
+    if bolsa ==  "Consultoria":
+            return "consultoria"
+    elif bolsa == "Coordenador Pedagógico":
+            return "coordenador_pedagogico"
+    elif bolsa == "Coordenador Técnico":
+            return "coordenador_tecnico"
+    elif bolsa == "Doutorado":
+            return "doutorado"
+    elif bolsa == "Iniciação Científica":
+            return "ic"
+    elif bolsa == "Mestrado":
+            return "mestrado"
+    elif bolsa == "Pesquisador":
+            return "pesquisa"
+    elif bolsa == "Pesquisadora":
+            return "pesquisa"
+    elif bolsa == "Pós Doutorado":
+            return "pos_doutorado"
+    elif bolsa == "NSA":
+            return "nsa"
+    else: 
+        return "desconhecido"
+ 
 def get_addressFromCEP(df_ceps) :
     df_ceps = df_ceps.drop_duplicates().dropna()
 
@@ -181,6 +201,8 @@ def sendEmail(df) :
     login: %s (seu CPF)
     senha: %s
     
+    Recomenda-se mudar a senha no primeiro login.
+
     Att., 
     
     Equipe Plataforma Pescarte
@@ -243,7 +265,12 @@ def connect2Data () :
     # print(df_sheet.head())
 
     return df_sheet
-    
+
+# def getEngine() :
+#     # insert into db
+#     # sqlalchemy engine
+#     return create_engine('postgresql://' + USER + ':' + PASSWORD + '@' + HOST + ':' + PORT + '/' + DATABASE)
+
     
     ########################################################################################################################
 #               NÚCLEOS DE PESQUISA
@@ -256,19 +283,29 @@ def insertNucleos(conn) :
     #     NUCLEO C - SOCIABILIDADES E PARTICIPAÇÃO
     #     NUCLEO D - CENSO E AFINS
 
+    nucleo_A_desc = ''''
+    O Núcleo A de pesquisas do PEA Pescarte envolve um variado número de pesquisadores interessados na CULTURA e nos CONFLITOS SOCIOAMBIENTAIS que envolvem as comunidades da pesca artesanal nos 10 municípios de atuação do PEA Pescarte no Estado do Rio de Janeiro. Suas pesquisas, de natureza analítica e muitas vezes interativa e intervencionista, envolvem questões como as memórias, identidades e fazeres artesanais nestas comunidades; a natureza do trabalho e a organização produtiva destas comunidades artesanais; a justiça ambiental, em seus problemas sobre a distribuição dos custos e benefícios da exploração do petróleo para essas comunidades; as memórias, tradições devocionais e histórias dos sujeitos que compõem essas comunidades; trabalhos acerca dos conflitos socioambientais que afligem essas comunidades; a produção da linguagem como patrimônio cultural e afirmação da identidade das pessoas nestas comunidades de pesca artesanal e, além disso, os pesquisadores deste Núcleo de pesquisa se dedicam ao acompanhamento das tecnologias sociais a serem desenvolvidas frente aos empreendimentos de geração de renda na cadeia produtiva da pesca artesanal.    '''
+    nucleo_B_desc = ''''
+    O Núcleo B de Pesquisas do PEA Pescarte tem em comum Pesquisas sobre os RECURSOS PESQUEIROS e a SEGURANÇA ALIMENTAR. Os pesquisadores deste núcleo tratam das cadeias produtivas do pescado, com foco em propostas e alternativas a partir do Pescarte; percebem e analisam a problemática da insegurança alimentar e a cadeia de agregação de valor na pesca artesanal; além de produzirem uma análise ecossistêmica dessa atividade econômico-social bem como estruturam linhas de análise para o desenvolvimento econômico pesqueiro a partir da aquicultura e da pesca artesanal. E, claro, essas pesquisas tratam dos seus temas a partir do acompanhamento do trabalho e ação do PEA Pescarte nos 10 municípios que são o foco deste projeto ambiental no Norte e na Região dos Lagos Fluminenses.    '''
+    nucleo_C_desc = ''''
+    O Núcleo C de Pesquisas do PEA Pescarte abarca as PESQUISAS EM SOCIABILIDADES E PARTICIPAÇÃO. Neste núcleo várias pesquisas são desenvolvidas preocupando-se com diversas questões acerca da condições urbanísticas e da apropriação do espaço pelas comunidades pesqueiras artesanais; pensando metodologias participativas e o processo da Educação Ambiental Pública; refletindo sobre os processos sociais e as novas tendências na pesca artesanal litorânea do Norte fluminense, acompanhando a inserção da comunidade pesqueira da Bacia de Campos em diferentes fóruns deliberativos e pesando a juventude e o modo de vida na pesca. Cabe lembrar que essas preocupações e análises se voltam às comunidades pesqueiras artesanais existentes nos 10 municípios que envolvem a ação do PEA Pescarte no Norte e região dos Lagos fluminenses.    '''
+    nucleo_D_desc = ''''
+    O Núcleo de Pesquisa D engloba os trabalhos que dizem respeito às “PESQUISAS CENSITÁRIAS E DE REDES”. Neste núcleo, os pesquisadores do Pescarte se preocupam com analisar acompanhar e analisar o Censo e os que vem sendo aplicado junto às comunidades de pesca artesanal e a produção de indicadores sociais desta atividade em dez municípios fluminenses. Além disso, neste núcleo são desenvolvidas pesquisas que analisam as redes de liderança da pesca artesanal nestes municípios, dando-se ênfase especial aos dados georreferenciados. Também se organizam aqui as pesquisas que estão subsidiando e dando forma e conteúdo para a Plataforma digital do PEA Pescarte.
+    '''
+
     cur = conn.cursor()
     sqltxt = 'INSERT INTO nucleo_pesquisa (nome, "desc", id_publico, letra, inserted_at, updated_at) VALUES (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s)) ON CONFLICT DO NOTHING'
 
-    vals = ('CULTURA', 'NUCLEO A - CULTURA', generate_nanoid()[0], 'A', time.time(), time.time())
+    vals = ('CULTURA', nucleo_A_desc, generate_nanoid()[0], 'A', time.time(), time.time())
     cur.execute(sqltxt,vals)
 
-    vals = ('RECURSOS HÍDRICOS E ALIMENTARES', 'NUCLEO B - RECURSOS HÍDRICOS E ALIMENTARES',  generate_nanoid()[0], 'B', time.time(), time.time())
+    vals = ('RECURSOS HÍDRICOS E ALIMENTARES', nucleo_B_desc,  generate_nanoid()[0], 'B', time.time(), time.time())
     cur.execute(sqltxt,vals)
 
-    vals = ('SOCIABILIDADES E PARTICIPAÇÃO', 'NUCLEO C - SOCIABILIDADES E PARTICIPAÇÃO',  generate_nanoid()[0], 'C', time.time(), time.time())
+    vals = ('SOCIABILIDADES E PARTICIPAÇÃO', nucleo_C_desc,  generate_nanoid()[0], 'C', time.time(), time.time())
     cur.execute(sqltxt,vals)
 
-    vals = ('CENSO E AFINS', 'NUCLEO D - CENSO E AFINS',  generate_nanoid()[0], 'D', time.time(), time.time())
+    vals = ('CENSO E AFINS', nucleo_D_desc,  generate_nanoid()[0], 'D', time.time(), time.time())
     cur.execute(sqltxt,vals)
 
     conn.commit()
@@ -500,7 +537,7 @@ def insertDadosPesquisa(conn,df_pesquisa) :
     for idx,u in df_pesquisa.iterrows() :
         campus_id = get_campusID(conn,u['UNIVERSIDADE SIGLA'], u['CAMPUS']) 
         pesquisador_id = get_userID(conn,u['CPF'])
-        vals = (pesquisador_id, u['TIPO DE BOLSA'], \
+        vals = (pesquisador_id, get_tipo_bolsa(u['TIPO DE BOLSA']), \
                 u['LINK LATTES'], u['FORMAÇÃO'], \
                     u['Data de início BOLSA'], u['Data de fim BOLSA'], u['DATA DA CONTRATAÇÃO'], \
                     campus_id, pesquisador_id, time.time(), time.time())
@@ -710,7 +747,7 @@ loadUsuarios(conn,df_datasheet)
 # Para mexer no script de importação de pesquisadores e atualizar no GITHUB
 # git add import_script.py
 # git commit -m "script revisado com nome de campos e de tabelas reais da plataforma" ("some improvements")
-# git push
+# git push OR git push -f origin main
 
 
 
