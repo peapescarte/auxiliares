@@ -294,7 +294,7 @@ def insertNucleos(conn) :
     '''
 
     cur = conn.cursor()
-    sqltxt = 'INSERT INTO nucleo_pesquisa (nome, "desc", id_publico, letra, inserted_at, updated_at) VALUES (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s)) ON CONFLICT DO NOTHING'
+    sqltxt = 'INSERT INTO nucleo_pesquisa (nome, "desc", id, letra, inserted_at, updated_at) VALUES (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s)) ON CONFLICT DO NOTHING'
 
     vals = ('CULTURA', nucleo_A_desc, generate_nanoid()[0], 'A', time.time(), time.time())
     cur.execute(sqltxt,vals)
@@ -331,7 +331,7 @@ def insertLPs(conn,df_sheet) :
     df_linhaspesquisa.fillna('null', inplace=True) # nucleo_pesquisa_letra com NaN
 
     # importando para o BD - tabela linha_pesquisa
-    sqltxt = "INSERT INTO linha_pesquisa (id_publico, numero, desc_curta, nucleo_pesquisa_letra, inserted_at, updated_at) VALUES (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))" 
+    sqltxt = "INSERT INTO linha_pesquisa (id, numero, desc_curta, nucleo_pesquisa_letra, inserted_at, updated_at) VALUES (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))" 
 
     cur = conn.cursor()
     for idx,lp in df_linhaspesquisa.iterrows() :
@@ -348,7 +348,7 @@ def insertLPs(conn,df_sheet) :
 
 def get_userID(conn, cpf) :
     cur = conn.cursor()
-    sqltxt = 'SELECT id_publico FROM usuario ' + "WHERE cpf ILIKE '%s'" % cpf
+    sqltxt = 'SELECT id FROM usuario ' + "WHERE cpf ILIKE '%s'" % cpf
     cur.execute(sqltxt)
     user_id = cur.fetchone()
     if user_id == None :
@@ -359,7 +359,7 @@ def get_userID(conn, cpf) :
 
 def get_campusID(conn, univ_sigla, campus) :
     cur = conn.cursor()
-    sqltxt = "SELECT id_publico FROM campus WHERE acronimo ILIKE '%s' AND nome ILIKE '%s'" % (univ_sigla.strip(), campus.strip())
+    sqltxt = "SELECT id FROM campus WHERE acronimo ILIKE '%s' AND nome ILIKE '%s'" % (univ_sigla.strip(), campus.strip())
     cur.execute(sqltxt)
     campus_id = cur.fetchone()
     cur.close()
@@ -369,7 +369,7 @@ def get_campusID(conn, univ_sigla, campus) :
 
 def get_pesquisadorID(conn,lattes) :
     cur = conn.cursor()
-    sqltxt = "SELECT id_publico FROM pesquisador WHERE link_lattes ILIKE '%s'" % lattes
+    sqltxt = "SELECT id FROM pesquisador WHERE link_lattes ILIKE '%s'" % lattes
     cur.execute(sqltxt)
     pesquisador_id = cur.fetchone()
     cur.close()
@@ -399,7 +399,7 @@ def empty_table(conn,table,ini=0) :
     cur.close()
 
 def erase_data(conn) :
-    empty_table(conn,'"pesquisador_LP"')
+    empty_table(conn,'pesquisador_lp')
     empty_table(conn,'pesquisador')
     empty_table(conn,'usuario')
     empty_table(conn,"contato")
@@ -437,7 +437,7 @@ def insertCampi(conn,df_sheet) :
     nanoids = generate_nanoid(len(df_universidades_core.index))
     df_universidades_core.insert(0,"public_id",nanoids, allow_duplicates=False)
 
-    sqltxt = "INSERT INTO campus (id_publico, acronimo, nome, nome_universidade, endereco_id, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))" 
+    sqltxt = "INSERT INTO campus (id, acronimo, nome, nome_universidade, endereco_id, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))" 
 
     cur = conn.cursor()
     for idx,campus in df_universidades_core.iterrows() :
@@ -465,7 +465,7 @@ def insertUniversityAddress(conn,df_universidades_complement) :
 
     df_address.insert(0,"public_id",generate_nanoid(len(df_address.index)), allow_duplicates=False)
 
-    sqltxt_address = "INSERT INTO endereco (id_publico, rua, cep, cidade, estado, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))"
+    sqltxt_address = "INSERT INTO endereco (id, rua, cep, cidade, estado, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))"
 
     cur = conn.cursor()
     for idx, ad in df_address.iterrows() :
@@ -484,7 +484,7 @@ def insertUniversityAddress(conn,df_universidades_complement) :
 def insertContactInfo(conn,df_contato) :
     cur = conn.cursor()
 
-    sqltxt_address = "INSERT INTO endereco (id_publico, rua, cep, cidade, estado, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))"
+    sqltxt_address = "INSERT INTO endereco (id, rua, cep, cidade, estado, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))"
     sqltxt_contato = "INSERT INTO contato (id_publico, celular_principal, email_principal, celulares_adicionais, emails_adicionais, endereco_id, inserted_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))"
 
     for idx,contact in df_contato.iterrows() :
@@ -511,12 +511,12 @@ def insertUserData(conn,df_usuarios) :
     # garantindo formato de DATA DMY
     sql = "SET datestyle to DMY, SQL; "
     cur.execute(sql)
-    sqltxt = 'INSERT INTO usuario (id_publico, cpf, rg, primeiro_nome, sobrenome, data_nascimento, tipo, hash_senha, "ativo?", link_avatar, contato_id, inserted_at, updated_at) \
+    sqltxt = 'INSERT INTO usuario (id, cpf, rg, primeiro_nome, sobrenome, data_nascimento, tipo, hash_senha, "ativo?", link_avatar, contato_id, inserted_at, updated_at) \
               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))'
 
     for idx,u in df_usuarios.iterrows() :
         vals = (u['public_id'], u['CPF'], u['RG'], \
-            u['BOLSISTA - NOME'], u['BOLSISTA - SOBRENOME'],    \
+            u['BOLSISTA - NOME'].strip(), u['BOLSISTA - SOBRENOME'].strip(),    \
             u['Data de Nascimento'], "pesquisador", u['Hashed'], u['ATIVO (S/N)'], u['Foto'], u['contato_id'], time.time(), time.time())
         cur.execute(sqltxt, vals)
 
@@ -530,7 +530,7 @@ def insertDadosPesquisa(conn,df_pesquisa) :
     # garantindo formato de DATA DMY
     sql = "SET datestyle to DMY, SQL; "
     cur.execute(sql)
-    sqltxt = 'INSERT INTO pesquisador (id_publico, bolsa, link_lattes, formacao, \
+    sqltxt = 'INSERT INTO pesquisador (id, bolsa, link_lattes, formacao, \
           data_inicio_bolsa, data_fim_bolsa, data_contratacao, campus_id, usuario_id, inserted_at, updated_at) \
               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s))'
 
@@ -549,7 +549,7 @@ def insertDadosPesquisa(conn,df_pesquisa) :
 
 def insert_LP_pesquisador(conn,df_LP):
     cur = conn.cursor()
-    sqltxt = 'INSERT INTO "pesquisador_LP" (pesquisador, linha_pesquisa, "lider?", inserted_at, updated_at) \
+    sqltxt = 'INSERT INTO pesquisador_lp (pesquisador, linha_pesquisa, "lider?", inserted_at, updated_at) \
                 VALUES (%s, %s, %s, to_timestamp(%s), to_timestamp(%s))'
     for idx,lp in df_LP.iterrows() :
         pesquisador_id = get_pesquisadorID(conn,lp['LINK LATTES'])
@@ -740,6 +740,7 @@ loadUsuarios(conn,df_datasheet)
 
 
 # conda activate pescarte-import
+# cd /Users/sahudymontenegro/Documents/WORK/pescarte-uenf/importscripts/syncver
 # python -W ignore import_script.py      OU
 # python import_script.py
 # servidor SMTP - de email: python -m smtpd -c DebuggingServer -n localhost:1025
@@ -757,6 +758,7 @@ loadUsuarios(conn,df_datasheet)
 # OK deixar o endereco como esta na planilha, apenas separar a cidade - manter endereco num campo so, ignorar rua e complemento
 # OK verificar o esquema real
 # email real do noreply-pea-pescarte@uenf.br  para testar/enviar! : hoje vai copia do email para o sender, tem como evitar?
+# OK descricao longa dos nucleos
 # preciso da descricao longa das LPs
 # OK testado! email
 # OK tem 104 insercoes ao inves de 106 - revisar os enderecos com cep nao encontrado e colocar o original
